@@ -33,7 +33,7 @@ jobs:
         run: npm run build
 
       - name: Install Capacitor
-        run: npm install @capacitor/android @capacitor/core
+        run: npm install @capacitor/android @capacitor/core @capacitor/filesystem
 
       - name: Install Capacitor Android
         run: npx cap add android

@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, Download, Upload } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import SearchPatient from '@/components/SearchPatient';
 import PatientList from '@/components/PatientList';
@@ -9,10 +9,12 @@ import PatientView from '@/components/PatientView';
 import PatientForm from '@/components/PatientForm';
 import { PatientRecord, SearchOptions } from '@/types/patient';
 import { toast } from 'sonner';
-import { collection, query, where, getDocs, doc, updateDoc, DocumentData } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
+import { Filesystem, Directory, Encoding } from '@capacitor/filesystem';
 
 type ViewMode = 'search' | 'view' | 'edit';
+
+// Local storage key for patient records
+const PATIENTS_STORAGE_KEY = 'patient_records';
 
 const SearchPage = () => {
   const navigate = useNavigate();
@@ -21,38 +23,28 @@ const SearchPage = () => {
   const [viewMode, setViewMode] = useState<ViewMode>('search');
   const [isLoading, setIsLoading] = useState<boolean>(false);
 
+  // Helper function to get all patients from localStorage
+  const getAllPatients = (): PatientRecord[] => {
+    const patientsJson = localStorage.getItem(PATIENTS_STORAGE_KEY);
+    return patientsJson ? JSON.parse(patientsJson) : [];
+  };
+
   const handleSearch = async (options: SearchOptions) => {
     try {
       setIsLoading(true);
-      const patientsRef = collection(db, 'patients');
-      let q;
+      const allPatients = getAllPatients();
+      
+      let filteredPatients: PatientRecord[] = [];
       
       if (options.type === 'mobile') {
-        q = query(patientsRef, where("mobileNumber", ">=", options.query), where("mobileNumber", "<=", options.query + '\uf8ff'));
+        filteredPatients = allPatients.filter(patient => 
+          patient.mobileNumber.toLowerCase().includes(options.query.toLowerCase())
+        );
       } else {
-        q = query(patientsRef, where("patientName", ">=", options.query.toLowerCase()), where("patientName", "<=", options.query.toLowerCase() + '\uf8ff'));
+        filteredPatients = allPatients.filter(patient => 
+          patient.patientName.toLowerCase().includes(options.query.toLowerCase())
+        );
       }
-
-      const querySnapshot = await getDocs(q);
-      
-      const filteredPatients: PatientRecord[] = [];
-      querySnapshot.forEach((doc) => {
-        // Fix: Convert Firestore document to PatientRecord type with proper typing
-        const data = doc.data() as DocumentData;
-        filteredPatients.push({
-          id: doc.id,
-          date: data.date as string,
-          patientName: data.patientName as string,
-          mobileNumber: data.mobileNumber as string,
-          rightEye: data.rightEye as PatientRecord['rightEye'],
-          leftEye: data.leftEye as PatientRecord['leftEye'],
-          framePrice: data.framePrice as number,
-          glassPrice: data.glassPrice as number,
-          totalPrice: data.totalPrice as number,
-          remarks: data.remarks as string,
-          createdAt: data.createdAt as string
-        });
-      });
 
       // Sort by date, most recent first
       filteredPatients.sort((a: PatientRecord, b: PatientRecord) => 
@@ -89,24 +81,16 @@ const SearchPage = () => {
         return;
       }
 
-      // Update the patient in Firestore
-      const patientRef = doc(db, "patients", updatedPatient.id);
+      // Get all patients from localStorage
+      const allPatients = getAllPatients();
       
-      // Fix: Create a clean object without the id field for updating Firestore
-      const patientData = {
-        date: updatedPatient.date,
-        patientName: updatedPatient.patientName,
-        mobileNumber: updatedPatient.mobileNumber,
-        rightEye: updatedPatient.rightEye,
-        leftEye: updatedPatient.leftEye,
-        framePrice: updatedPatient.framePrice,
-        glassPrice: updatedPatient.glassPrice,
-        totalPrice: updatedPatient.totalPrice,
-        remarks: updatedPatient.remarks,
-        createdAt: updatedPatient.createdAt
-      };
+      // Update the patient in the array
+      const updatedPatients = allPatients.map(p => 
+        p.id === updatedPatient.id ? updatedPatient : p
+      );
       
-      await updateDoc(patientRef, patientData);
+      // Save back to localStorage
+      localStorage.setItem(PATIENTS_STORAGE_KEY, JSON.stringify(updatedPatients));
       
       // Update the patient in the search results
       setSearchResults(prev => prev.map(p => 
@@ -127,22 +111,104 @@ const SearchPage = () => {
     setSelectedPatient(null);
   };
 
+  // Export all patient data to a JSON file
+  const exportData = async () => {
+    try {
+      const allPatients = getAllPatients();
+      
+      if (allPatients.length === 0) {
+        toast.info('No records to export');
+        return;
+      }
+      
+      const jsonData = JSON.stringify(allPatients, null, 2);
+      const fileName = `patient_records_${new Date().toISOString().slice(0, 10)}.json`;
+      
+      // Write the file to device storage
+      await Filesystem.writeFile({
+        path: fileName,
+        data: jsonData,
+        directory: Directory.Documents,
+        encoding: Encoding.UTF8,
+      });
+      
+      toast.success(`Exported ${allPatients.length} records to ${fileName} in Documents folder`);
+    } catch (error) {
+      console.error('Error exporting data:', error);
+      toast.error('Failed to export data');
+    }
+  };
+
+  // Import patient data from a JSON file
+  const importData = async () => {
+    try {
+      // This will need a file picker, but for now we can import a specific file
+      const filePath = prompt('Enter the file path to import (e.g., patient_records_2023-04-08.json):');
+      
+      if (!filePath) return;
+      
+      const result = await Filesystem.readFile({
+        path: filePath,
+        directory: Directory.Documents,
+        encoding: Encoding.UTF8,
+      });
+      
+      const importedPatients = JSON.parse(result.data) as PatientRecord[];
+      
+      if (!Array.isArray(importedPatients)) {
+        toast.error('Invalid file format');
+        return;
+      }
+      
+      // Merge with existing records, avoiding duplicates by ID
+      const existingPatients = getAllPatients();
+      const existingIds = new Set(existingPatients.map(p => p.id));
+      
+      const newPatients = [
+        ...existingPatients,
+        ...importedPatients.filter(p => p.id && !existingIds.has(p.id))
+      ];
+      
+      localStorage.setItem(PATIENTS_STORAGE_KEY, JSON.stringify(newPatients));
+      
+      toast.success(`Imported ${importedPatients.length} records successfully`);
+    } catch (error) {
+      console.error('Error importing data:', error);
+      toast.error('Failed to import data');
+    }
+  };
+
   return (
     <div className="pb-20">
-      <div className="sticky top-0 z-10 bg-background p-4 flex items-center border-b">
-        <Button variant="ghost" size="icon" onClick={() => {
-          if (viewMode !== 'search') {
-            handleBackToSearch();
-          } else {
-            navigate('/dashboard');
-          }
-        }}>
-          <ArrowLeft size={20} />
-        </Button>
-        <h1 className="text-xl font-bold ml-4">
-          {viewMode === 'search' ? 'Search Records' : 
-           viewMode === 'view' ? 'Patient Details' : 'Edit Patient'}
-        </h1>
+      <div className="sticky top-0 z-10 bg-background p-4 flex items-center justify-between border-b">
+        <div className="flex items-center">
+          <Button variant="ghost" size="icon" onClick={() => {
+            if (viewMode !== 'search') {
+              handleBackToSearch();
+            } else {
+              navigate('/dashboard');
+            }
+          }}>
+            <ArrowLeft size={20} />
+          </Button>
+          <h1 className="text-xl font-bold ml-4">
+            {viewMode === 'search' ? 'Search Records' : 
+            viewMode === 'view' ? 'Patient Details' : 'Edit Patient'}
+          </h1>
+        </div>
+        
+        {viewMode === 'search' && (
+          <div className="flex space-x-2">
+            <Button variant="outline" size="sm" onClick={exportData} title="Export Data">
+              <Download size={18} className="mr-2" />
+              Export
+            </Button>
+            <Button variant="outline" size="sm" onClick={importData} title="Import Data">
+              <Upload size={18} className="mr-2" />
+              Import
+            </Button>
+          </div>
+        )}
       </div>
 
       {viewMode === 'search' && (

@@ -6,8 +6,10 @@ import { Button } from '@/components/ui/button';
 import PatientForm from '@/components/PatientForm';
 import { PatientRecord } from '@/types/patient';
 import { toast } from 'sonner';
-import { collection, addDoc } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
+import { v4 as uuidv4 } from 'uuid';
+
+// Local storage key for patient records (same as in SearchPage)
+const PATIENTS_STORAGE_KEY = 'patient_records';
 
 const NewPatientPage = () => {
   const navigate = useNavigate();
@@ -17,14 +19,20 @@ const NewPatientPage = () => {
       // Generate a timestamp for createdAt
       record.createdAt = new Date().toISOString();
       
-      // Separate the id before saving to Firestore
-      const { id, ...recordWithoutId } = record;
+      // Generate a unique ID for the record
+      record.id = uuidv4();
       
-      // Save to Firebase Firestore
-      const docRef = await addDoc(collection(db, "patients"), recordWithoutId);
+      // Get existing records from localStorage
+      const existingRecordsJson = localStorage.getItem(PATIENTS_STORAGE_KEY);
+      const existingRecords: PatientRecord[] = existingRecordsJson 
+        ? JSON.parse(existingRecordsJson) 
+        : [];
       
-      // Set the id from Firestore document ID
-      record.id = docRef.id;
+      // Add the new record
+      const updatedRecords = [...existingRecords, record];
+      
+      // Save back to localStorage
+      localStorage.setItem(PATIENTS_STORAGE_KEY, JSON.stringify(updatedRecords));
       
       toast.success('Patient record saved successfully');
       navigate('/dashboard');
