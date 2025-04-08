@@ -17,8 +17,11 @@ const NewPatientPage = () => {
       // Generate a timestamp for createdAt
       record.createdAt = new Date().toISOString();
       
-      // Save to Firebase Firestore instead of localStorage
-      const docRef = await addDoc(collection(db, "patients"), record);
+      // Separate the id before saving to Firestore
+      const { id, ...recordWithoutId } = record;
+      
+      // Save to Firebase Firestore
+      const docRef = await addDoc(collection(db, "patients"), recordWithoutId);
       
       // Set the id from Firestore document ID
       record.id = docRef.id;

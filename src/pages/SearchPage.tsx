@@ -37,7 +37,21 @@ const SearchPage = () => {
       
       const filteredPatients: PatientRecord[] = [];
       querySnapshot.forEach((doc) => {
-        filteredPatients.push({ ...doc.data(), id: doc.id } as PatientRecord);
+        // Fix: Convert Firestore document to PatientRecord type explicitly
+        const data = doc.data();
+        filteredPatients.push({
+          id: doc.id,
+          date: data.date,
+          patientName: data.patientName,
+          mobileNumber: data.mobileNumber,
+          rightEye: data.rightEye,
+          leftEye: data.leftEye,
+          framePrice: data.framePrice,
+          glassPrice: data.glassPrice,
+          totalPrice: data.totalPrice,
+          remarks: data.remarks,
+          createdAt: data.createdAt
+        } as PatientRecord);
       });
 
       // Sort by date, most recent first
@@ -77,7 +91,22 @@ const SearchPage = () => {
 
       // Update the patient in Firestore
       const patientRef = doc(db, "patients", updatedPatient.id);
-      await updateDoc(patientRef, updatedPatient);
+      
+      // Fix: Create a clean object without the id field for updating Firestore
+      const patientData = {
+        date: updatedPatient.date,
+        patientName: updatedPatient.patientName,
+        mobileNumber: updatedPatient.mobileNumber,
+        rightEye: updatedPatient.rightEye,
+        leftEye: updatedPatient.leftEye,
+        framePrice: updatedPatient.framePrice,
+        glassPrice: updatedPatient.glassPrice,
+        totalPrice: updatedPatient.totalPrice,
+        remarks: updatedPatient.remarks,
+        createdAt: updatedPatient.createdAt
+      };
+      
+      await updateDoc(patientRef, patientData);
       
       // Update the patient in the search results
       setSearchResults(prev => prev.map(p => 
