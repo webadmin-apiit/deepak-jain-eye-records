@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Download, Upload } from 'lucide-react';
@@ -152,6 +151,12 @@ const SearchPage = () => {
         directory: Directory.Documents,
         encoding: Encoding.UTF8,
       });
+      
+      // Check if result.data is a string before parsing
+      if (typeof result.data !== 'string') {
+        toast.error('Invalid file format: could not read file data as text');
+        return;
+      }
       
       const importedPatients = JSON.parse(result.data) as PatientRecord[];
       

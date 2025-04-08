@@ -32,8 +32,8 @@ jobs:
       - name: Build web app
         run: npm run build
 
-      - name: Install Capacitor
-        run: npm install @capacitor/android @capacitor/core @capacitor/filesystem
+      - name: Install Capacitor and required plugins
+        run: npm install @capacitor/android @capacitor/core @capacitor/filesystem uuid @types/uuid
 
       - name: Install Capacitor Android
         run: npx cap add android
