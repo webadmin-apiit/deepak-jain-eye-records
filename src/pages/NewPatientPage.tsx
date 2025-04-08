@@ -6,22 +6,22 @@ import { Button } from '@/components/ui/button';
 import PatientForm from '@/components/PatientForm';
 import { PatientRecord } from '@/types/patient';
 import { toast } from 'sonner';
+import { collection, addDoc } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
 
 const NewPatientPage = () => {
   const navigate = useNavigate();
 
   const handleSavePatient = async (record: PatientRecord) => {
     try {
-      // Here we'd normally save to Supabase
-      // For now, save to localStorage as a placeholder
-      const patients = JSON.parse(localStorage.getItem('patients') || '[]');
-      
-      // Generate a simple ID
-      record.id = `patient_${Date.now()}`;
+      // Generate a timestamp for createdAt
       record.createdAt = new Date().toISOString();
       
-      patients.push(record);
-      localStorage.setItem('patients', JSON.stringify(patients));
+      // Save to Firebase Firestore instead of localStorage
+      const docRef = await addDoc(collection(db, "patients"), record);
+      
+      // Set the id from Firestore document ID
+      record.id = docRef.id;
       
       toast.success('Patient record saved successfully');
       navigate('/dashboard');

@@ -1,7 +1,7 @@
 
 import React from 'react';
 import { format, parseISO } from 'date-fns';
-import { Eye } from 'lucide-react';
+import { Eye, Loader2 } from 'lucide-react';
 import { PatientRecord } from '@/types/patient';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -10,9 +10,21 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 interface PatientListProps {
   patients: PatientRecord[];
   onViewPatient: (patient: PatientRecord) => void;
+  isLoading?: boolean;
 }
 
-const PatientList: React.FC<PatientListProps> = ({ patients, onViewPatient }) => {
+const PatientList: React.FC<PatientListProps> = ({ patients, onViewPatient, isLoading = false }) => {
+  if (isLoading) {
+    return (
+      <Card className="w-full mt-4">
+        <CardContent className="pt-6 flex justify-center items-center h-[200px]">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          <span className="ml-2">Loading records...</span>
+        </CardContent>
+      </Card>
+    );
+  }
+
   if (patients.length === 0) {
     return (
       <Card className="w-full mt-4">

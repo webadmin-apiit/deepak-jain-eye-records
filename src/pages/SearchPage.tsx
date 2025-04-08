@@ -9,6 +9,8 @@ import PatientView from '@/components/PatientView';
 import PatientForm from '@/components/PatientForm';
 import { PatientRecord, SearchOptions } from '@/types/patient';
 import { toast } from 'sonner';
+import { collection, query, where, getDocs, doc, updateDoc } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
 
 type ViewMode = 'search' | 'view' | 'edit';
 
@@ -17,23 +19,26 @@ const SearchPage = () => {
   const [searchResults, setSearchResults] = useState<PatientRecord[]>([]);
   const [selectedPatient, setSelectedPatient] = useState<PatientRecord | null>(null);
   const [viewMode, setViewMode] = useState<ViewMode>('search');
+  const [isLoading, setIsLoading] = useState<boolean>(false);
 
-  const handleSearch = (options: SearchOptions) => {
+  const handleSearch = async (options: SearchOptions) => {
     try {
-      // Get patients from localStorage
-      const patients = JSON.parse(localStorage.getItem('patients') || '[]');
-
-      let filteredPatients: PatientRecord[];
+      setIsLoading(true);
+      const patientsRef = collection(db, 'patients');
+      let q;
       
       if (options.type === 'mobile') {
-        filteredPatients = patients.filter((p: PatientRecord) => 
-          p.mobileNumber.includes(options.query)
-        );
+        q = query(patientsRef, where("mobileNumber", ">=", options.query), where("mobileNumber", "<=", options.query + '\uf8ff'));
       } else {
-        filteredPatients = patients.filter((p: PatientRecord) => 
-          p.patientName.toLowerCase().includes(options.query.toLowerCase())
-        );
+        q = query(patientsRef, where("patientName", ">=", options.query.toLowerCase()), where("patientName", "<=", options.query.toLowerCase() + '\uf8ff'));
       }
+
+      const querySnapshot = await getDocs(q);
+      
+      const filteredPatients: PatientRecord[] = [];
+      querySnapshot.forEach((doc) => {
+        filteredPatients.push({ ...doc.data(), id: doc.id } as PatientRecord);
+      });
 
       // Sort by date, most recent first
       filteredPatients.sort((a: PatientRecord, b: PatientRecord) => 
@@ -48,6 +53,8 @@ const SearchPage = () => {
     } catch (error) {
       console.error('Error searching patients:', error);
       toast.error('Error searching for records');
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -61,27 +68,25 @@ const SearchPage = () => {
     setViewMode('edit');
   };
 
-  const handleSavePatient = (updatedPatient: PatientRecord) => {
+  const handleSavePatient = async (updatedPatient: PatientRecord) => {
     try {
-      // Get patients from localStorage
-      const patients = JSON.parse(localStorage.getItem('patients') || '[]');
-      
-      // Find and update the patient
-      const index = patients.findIndex((p: PatientRecord) => p.id === updatedPatient.id);
-      
-      if (index !== -1) {
-        patients[index] = updatedPatient;
-        localStorage.setItem('patients', JSON.stringify(patients));
-        
-        // Update search results
-        setSearchResults(patients.filter((p: PatientRecord) => 
-          searchResults.some(r => r.id === p.id)
-        ));
-        
-        setSelectedPatient(updatedPatient);
-        setViewMode('view');
-        toast.success('Patient record updated successfully');
+      if (!updatedPatient.id) {
+        toast.error('Patient ID is missing');
+        return;
       }
+
+      // Update the patient in Firestore
+      const patientRef = doc(db, "patients", updatedPatient.id);
+      await updateDoc(patientRef, updatedPatient);
+      
+      // Update the patient in the search results
+      setSearchResults(prev => prev.map(p => 
+        p.id === updatedPatient.id ? updatedPatient : p
+      ));
+      
+      setSelectedPatient(updatedPatient);
+      setViewMode('view');
+      toast.success('Patient record updated successfully');
     } catch (error) {
       console.error('Error updating patient:', error);
       toast.error('Failed to update patient record');
@@ -114,7 +119,7 @@ const SearchPage = () => {
       {viewMode === 'search' && (
         <div className="app-container">
           <SearchPatient onSearch={handleSearch} />
-          <PatientList patients={searchResults} onViewPatient={handleViewPatient} />
+          <PatientList patients={searchResults} onViewPatient={handleViewPatient} isLoading={isLoading} />
         </div>
       )}
 
