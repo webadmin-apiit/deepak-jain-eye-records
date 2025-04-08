@@ -9,7 +9,7 @@ import PatientView from '@/components/PatientView';
 import PatientForm from '@/components/PatientForm';
 import { PatientRecord, SearchOptions } from '@/types/patient';
 import { toast } from 'sonner';
-import { collection, query, where, getDocs, doc, updateDoc } from 'firebase/firestore';
+import { collection, query, where, getDocs, doc, updateDoc, DocumentData } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 
 type ViewMode = 'search' | 'view' | 'edit';
@@ -37,21 +37,21 @@ const SearchPage = () => {
       
       const filteredPatients: PatientRecord[] = [];
       querySnapshot.forEach((doc) => {
-        // Fix: Convert Firestore document to PatientRecord type explicitly
-        const data = doc.data();
+        // Fix: Convert Firestore document to PatientRecord type with proper typing
+        const data = doc.data() as DocumentData;
         filteredPatients.push({
           id: doc.id,
-          date: data.date,
-          patientName: data.patientName,
-          mobileNumber: data.mobileNumber,
-          rightEye: data.rightEye,
-          leftEye: data.leftEye,
-          framePrice: data.framePrice,
-          glassPrice: data.glassPrice,
-          totalPrice: data.totalPrice,
-          remarks: data.remarks,
-          createdAt: data.createdAt
-        } as PatientRecord);
+          date: data.date as string,
+          patientName: data.patientName as string,
+          mobileNumber: data.mobileNumber as string,
+          rightEye: data.rightEye as PatientRecord['rightEye'],
+          leftEye: data.leftEye as PatientRecord['leftEye'],
+          framePrice: data.framePrice as number,
+          glassPrice: data.glassPrice as number,
+          totalPrice: data.totalPrice as number,
+          remarks: data.remarks as string,
+          createdAt: data.createdAt as string
+        });
       });
 
       // Sort by date, most recent first
