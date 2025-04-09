@@ -41,12 +41,6 @@ jobs:
       - name: Sync Capacitor
         run: npx cap sync android
 
-      - name: Configure Java version for Gradle
-        working-directory: android
-        run: |
-          echo "org.gradle.java.home=/usr/lib/jvm/temurin-17-jdk-amd64" >> gradle.properties
-          echo "JavaVersion.VERSION_17" > app/build.gradle
-
       - name: Build Android app
         working-directory: android
         run: |
